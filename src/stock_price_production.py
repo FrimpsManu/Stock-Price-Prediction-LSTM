@@ -1,4 +1,4 @@
-# stock_price_prediction.py
+# stock_price_prediction_long_term.py
 
 # Import necessary libraries
 import numpy as np
@@ -8,17 +8,26 @@ from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 from sklearn.metrics import mean_squared_error
+import yfinance as yf
 
-# Load your data
-data = pd.read_csv('data/stock_prices.csv')
+# Fetch stock data using yfinance
+stock_symbol = "AAPL"  # Replace with your desired stock symbol
+start_date = "2020-01-01"
+end_date = "2025-12-31"
+
+data = yf.download(stock_symbol, start=start_date, end=end_date)
+
+# Save to CSV (optional)
+data.to_csv('data/stock_prices.csv')
 
 # Ensure the 'Date' column is in datetime format and set as the index
+data.reset_index(inplace=True)
 data['Date'] = pd.to_datetime(data['Date'])
 data.set_index('Date', inplace=True)
 
-# Plot the stock data to visualize
+# Visualize the stock data
 plt.figure(figsize=(10, 6))
-plt.plot(data['Close'], label='Stock Price')
+plt.plot(data['Close'], label=f'{stock_symbol} Stock Price')
 plt.title('Stock Price History')
 plt.xlabel('Date')
 plt.ylabel('Stock Price')
@@ -34,7 +43,6 @@ scaler = MinMaxScaler(feature_range=(0, 1))
 scaled_data = scaler.fit_transform(stock_data)
 
 # Prepare the data for training
-# Use 60 days of past data to predict the next 20 days
 lookback = 60  # Number of past days to use
 horizon = 20   # Number of future days to predict
 
@@ -62,12 +70,12 @@ X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
 model = Sequential()
 
 # First LSTM layer with dropout
-model.add(LSTM(units=50, return_sequences=True, input_shape=(lookback, 1)))
-model.add(Dropout(0.2))
+model.add(LSTM(units=100, return_sequences=True, input_shape=(lookback, 1)))
+model.add(Dropout(0.3))
 
 # Second LSTM layer with dropout
-model.add(LSTM(units=50, return_sequences=False))
-model.add(Dropout(0.2))
+model.add(LSTM(units=100, return_sequences=False))
+model.add(Dropout(0.3))
 
 # Fully connected layer to predict multiple days
 model.add(Dense(units=horizon))
@@ -76,7 +84,23 @@ model.add(Dense(units=horizon))
 model.compile(optimizer='adam', loss='mean_squared_error')
 
 # Train the model
-model.fit(X_train, y_train, epochs=50, batch_size=32, validation_data=(X_test, y_test))
+history = model.fit(
+    X_train, y_train, 
+    epochs=100, 
+    batch_size=64, 
+    validation_data=(X_test, y_test), 
+    verbose=1
+)
+
+# Plot training and validation loss
+plt.figure(figsize=(10, 6))
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.title('Model Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+plt.show()
 
 # Evaluate the model on test data
 predictions = model.predict(X_test)
@@ -91,8 +115,8 @@ print(f"Mean Squared Error: {mse}")
 
 # Plot actual vs predicted stock prices for a sample
 plt.figure(figsize=(12, 6))
-plt.plot(range(horizon), y_test[0], label='Actual Prices')
-plt.plot(range(horizon), predictions[0], label='Predicted Prices', linestyle='--')
+plt.plot(range(horizon), y_test[0], label='Actual Prices', marker='o')
+plt.plot(range(horizon), predictions[0], label='Predicted Prices', linestyle='--', marker='x')
 plt.title('Sample Long-Term Stock Price Prediction')
 plt.xlabel('Days')
 plt.ylabel('Stock Price')
