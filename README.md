@@ -12,6 +12,17 @@ The project involves:
 - Building and training an LSTM model to predict future stock prices.
 - Visualizing the predictions and comparing them with actual values.
 
+The Tesla stock price dataset typically includes the following key features:
+
+    -Date: The specific day on which the stock price data was recorded.
+    -Open: The price at which the stock opened at the beginning of the trading day.
+    -Close: The price at which the stock closed at the end of the trading day.
+    -Adj. Close: The adjusted closing price, which accounts for corporate actions such as stock splits, dividends, and other adjustments that may have occurred on that day.
+    -High: The highest price the stock reached during the trading day.
+    -Low: The lowest price the stock fell to during the trading day.
+
+These features provide valuable insights into the stock's performance, trends, and volatility over time. They can be leveraged for various financial analyses, predictive modeling, and informed decision-making in the stock market.
+
  
 ## Project Structure 
  
