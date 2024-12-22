@@ -1,4 +1,3 @@
-yfinance
 numpy 
 pandas 
 matplotlib 
