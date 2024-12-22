@@ -10,7 +10,8 @@ from tensorflow.keras.layers import LSTM, Dense, Dropout
 from sklearn.metrics import mean_squared_error
 
 # Load the stock data from the local CSV
-file_path = "C:/Users/augus/Downloads/Tesla Stock Price (2010 to 2023).csv"  # Update the path if needed
+file_path = r"C:\Users\augus\OneDrive\Desktop\Tesla Stock Prices (2010-2023).csv"
+  # Update the path if needed
 data = pd.read_csv(file_path)
 
 # Ensure the 'Date' column is in datetime format and set as the index
