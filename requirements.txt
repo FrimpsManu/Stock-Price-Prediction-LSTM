@@ -3,3 +3,5 @@ pandas
 matplotlib 
 tensorflow 
 scikit-learn 
+plotly
+seaborn
