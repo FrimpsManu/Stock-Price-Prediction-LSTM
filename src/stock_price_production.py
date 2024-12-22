@@ -8,26 +8,18 @@ from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
 from sklearn.metrics import mean_squared_error
-import yfinance as yf
 
-# Fetch stock data using yfinance
-stock_symbol = "AAPL"  # Replace with your desired stock symbol
-start_date = "2020-01-01"
-end_date = "2025-12-31"
-
-data = yf.download(stock_symbol, start=start_date, end=end_date)
-
-# Save to CSV (optional)
-data.to_csv('data/stock_prices.csv')
+# Load the stock data from the local CSV
+file_path = "C:/Users/augus/Downloads/Tesla Stock Price (2010 to 2023).csv"  # Update the path if needed
+data = pd.read_csv(file_path)
 
 # Ensure the 'Date' column is in datetime format and set as the index
-data.reset_index(inplace=True)
 data['Date'] = pd.to_datetime(data['Date'])
 data.set_index('Date', inplace=True)
 
 # Visualize the stock data
 plt.figure(figsize=(10, 6))
-plt.plot(data['Close'], label=f'{stock_symbol} Stock Price')
+plt.plot(data['Close'], label='Tesla Stock Price')
 plt.title('Stock Price History')
 plt.xlabel('Date')
 plt.ylabel('Stock Price')
