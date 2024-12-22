@@ -1,104 +1,200 @@
-import numpy as np
-import pandas as pd
+import pandas as pd  #for data manipulation operations
+import numpy as np   #for linear algebra
+
+#Libraries for visualisation
+# Libraries for visualization
 import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.graph_objects as go
+import plotly.express as px
+from plotly.subplots import make_subplots
+
+
+import datetime as dt
+
+from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import mean_squared_error
+
+import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.layers import LSTM
 
-# Load your data (replace with your dataset)
-data = pd.read_csv(r"C:\Users\augus\OneDrive\Desktop\Tesla Stock Prices (2010-2023).csv")
+from itertools import cycle
 
-# Preprocess the data: Assuming the 'Close' column is the target for stock prices
-prices = data['Close'].values.reshape(-1, 1)
+#Loading the required data
+df = pd.read_csv('C:\\Users\\augus\\OneDrive\\Desktop\\Tesla Stock Prices (2010-2023).csv')
+df.set_index('Date',inplace=True)
+df.head()
 
-# Normalize the data
-scaler = MinMaxScaler(feature_range=(0, 1))
-prices_scaled = scaler.fit_transform(prices)
+print('Number of days present in the dataset: ',df.shape[0])
+print('Number of fields present in the dataset: ',df.shape[1])
 
-# Define lookback and horizon
-lookback = 60  # Number of previous days to use for prediction
-horizon = 5    # Number of days to predict
+df.info()
+df.describe()
 
-# Create datasets for training and testing
-def create_dataset(data, lookback, horizon):
-    X, y = [], []
-    for i in range(lookback, len(data) - horizon + 1):
-        X.append(data[i - lookback:i, 0])  # Take lookback days
-        y.append(data[i:i + horizon, 0])  # Take next 'horizon' days as target
-    return np.array(X), np.array(y)
+#EDA & Feature Engineering
 
-# Split the data into training and testing sets
-train_size = int(len(prices_scaled) * 0.8)
-train_data, test_data = prices_scaled[:train_size], prices_scaled[train_size:]
+from plotly.offline import init_notebook_mode
+init_notebook_mode(connected=True)
 
-X_train, y_train = create_dataset(train_data, lookback, horizon)
-X_test, y_test = create_dataset(test_data, lookback, horizon)
+#Check for null values
+df.isnull() .sum()
 
-# Reshape X to be 3D for LSTM [samples, time steps, features]
-X_train = X_train.reshape(X_train.shape[0], X_train.shape[1], 1)
-X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], 1)
+#Plots
+"""
+The stock prices are almost constant until 2019 
+and thus I'll take the split of the data to only work on 
+the data that shows methodical/abrupt changes.
 
-# Build the LSTM model
+"""
+data=df.iloc[2300:].copy()
+
+plt.figure(figsize=(30,15))
+ax=sns.lineplot(x=data.index,y=data['Close'])
+plt.xticks(['19/08/2019','16/03/2020','26/02/2021','15/03/2022','05/01/2023'])
+plt.show()
+
+data=df.iloc[2300:].copy()
+
+names = cycle(['Stock Open Price','Stock High Price','Stock Low Price','Stock Close Price'])
+
+fig = px.line(data, x=data.index, y=[data['Open'],data['High'], data['Low'],data['Close']],
+             labels={'date': 'Date','value':'Stock value'})
+fig.update_layout(title_text='Stock Analysis', font_size=15, font_color='black',legend_title_text='Stock Parameters')
+fig.update_xaxes(showgrid=False)
+fig.update_yaxes(showgrid=False)
+fig.for_each_trace(lambda t:  t.update(name = next(names)))
+fig.show()
+
+#Moving Averages(MA)
+"""
+Moving Averages (MA) are a type of time series analysis 
+method used to smooth out fluctuations in data by 
+calculating the average of a set of data over a certain period of time.
+"""
+
+ma_day = [30, 60, 120,150]
+
+for ma in ma_day:
+        column_name = f"MA for {ma} days"
+        data[column_name] = data['Close'].rolling(ma).mean()
+
+plt.figure(figsize=(30,15))
+plt.plot(data['Close'],label='Close Price')
+plt.plot(data['MA for 30 days'],label='30 days MA')
+plt.plot(data['MA for 60 days'],label='60 days MA')
+plt.plot(data['MA for 120 days'],label='120 days MA')
+plt.plot(data['MA for 150 days'],label='150 days MA')
+plt.xticks(['19/08/2019','16/03/2020','26/02/2021','15/03/2022','05/01/2023'])
+plt.legend()
+plt.show()
+
+names = cycle(['Close Price','MA 30 days','MA 60 days','MA 120 days','MA 150 days'])
+
+fig = px.line(data, x=data.index ,y=[data['Close'],data['MA for 30 days'],data['MA for 60 days'],data['MA for 120 days'], data['MA for 150 days']],labels={'date': 'Date','value':'Stock value'})
+fig.update_layout(title_text='Moving Average Analysis', font_size=15, font_color='black',legend_title_text='Stock Parameters')
+fig.update_xaxes(showgrid=False)
+fig.update_yaxes(showgrid=False)
+fig.for_each_trace(lambda t:  t.update(name = next(names)))
+fig.show()
+
+#Splitting the Time-Series Data
+# Creating a new dataframe with only 'Close'
+new_df = data['Close']
+new_df.index = data.index
+
+final_df=new_df.values
+
+train_data=final_df[0:646,]
+test_data=final_df[646:,]
+
+train_df = pd.DataFrame()
+test_df = pd.DataFrame()
+
+train_df['Close'] = train_data
+train_df.index = new_df[0:646].index
+test_df['Close'] = test_data
+test_df.index = new_df[646:].index
+
+print("train_data: ", train_df.shape)
+print("test_data: ", test_df.shape)
+
+#Scaling Data Using MIN-MAX Scaler
+# Using Min-Max scaler to scale data
+scaler=MinMaxScaler(feature_range=(0,1))
+scaled_data=scaler.fit_transform(final_df.reshape(-1,1))
+
+X_train_data,y_train_data=[],[]
+
+for i in range(60,len(train_df)):
+    X_train_data.append(scaled_data[i-60:i,0])
+    y_train_data.append(scaled_data[i,0])
+    
+X_train_data,y_train_data=np.array(X_train_data),np.array(y_train_data)
+
+X_train_data=np.reshape(X_train_data,(X_train_data.shape[0],X_train_data.shape[1],1))
+
+#Model Building
+# Initializing the LSTM model
 model = Sequential()
+model.add(LSTM(units = 50, return_sequences = True, input_shape = (X_train_data.shape[1], 1)))
+model.add(Dropout(0.2))
+model.add(LSTM(units = 50, return_sequences = True))
+model.add(Dropout(0.2))
+model.add(LSTM(units = 50, return_sequences = True))
+model.add(Dropout(0.2))
+model.add(LSTM(units = 50))
+model.add(Dropout(0.2))
+model.add(Dense(units = 1))
 
-# First LSTM layer with dropout and L2 regularization
-model.add(LSTM(units=30, return_sequences=True, input_shape=(lookback, 1), kernel_regularizer='l2'))
-model.add(Dropout(0.3))  # Increased dropout
+model.summary()
+model.compile(optimizer = 'adam', loss = 'mean_squared_error')
+model.fit(X_train_data, y_train_data, epochs = 150, batch_size = 32);
 
-# Second LSTM layer with dropout and L2 regularization
-model.add(LSTM(units=30, return_sequences=False, kernel_regularizer='l2'))
-model.add(Dropout(0.3))  # Increased dropout
+#Predictions
 
-# Fully connected layer to predict multiple days
-model.add(Dense(units=horizon))
+input_data=new_df[len(new_df)-len(test_df)-60:].values
+input_data=input_data.reshape(-1,1)
+input_data=scaler.transform(input_data)
 
-# Compile the model with a reduced learning rate and use a scheduler
-optimizer = Adam(learning_rate=0.0001)  # Reduced learning rate
-model.compile(optimizer=optimizer, loss='mean_squared_error')
+X_test=[]
+for i in range(60,input_data.shape[0]):
+    X_test.append(input_data[i-60:i,0])
+X_test=np.array(X_test)
 
-# Implement early stopping with a patience of 10
-early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+X_test=np.reshape(X_test,(X_test.shape[0],X_test.shape[1],1))
 
-# Train the model
-history = model.fit(
-    X_train, y_train, 
-    epochs=50,  # Reduced number of epochs
-    batch_size=64, 
-    validation_data=(X_test, y_test),
-    callbacks=[early_stopping],  # Use early stopping
-    verbose=1
-)
+predicted=model.predict(X_test)
+predicted=scaler.inverse_transform(predicted)
 
-# Plot training and validation loss
-plt.figure(figsize=(10, 6))
-plt.plot(history.history['loss'], label='Training Loss')
-plt.plot(history.history['val_loss'], label='Validation Loss')
-plt.title('Model Loss')
-plt.xlabel('Epochs')
-plt.ylabel('Loss')
+test_df['Predictions']=predicted
+
+plt.figure(figsize=(50,10))
+plt.plot(train_df['Close'],label='Training Data')
+plt.plot(test_df['Close'],label='Test Data')
+plt.plot(test_df['Predictions'],label='Prediction')
+plt.xticks(['19/08/2019','16/03/2020','26/02/2021','15/03/2022','05/01/2023'])
 plt.legend()
 plt.show()
 
-# Evaluate the model on test data
-predictions = model.predict(X_test)
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=train_df.index,y=train_df['Close'],
+                    mode='lines',
+                    name='Training Data'))
+fig.add_trace(go.Scatter(x=test_df.index,y=test_df['Close'],
+                    mode='lines',
+                    name='Test Data'))
+fig.add_trace(go.Scatter(x=test_df.index,y=test_df['Predictions'],
+                    mode='lines',
+                    name='Prediction'))
 
-# Inverse transform the predictions and y_test
-predictions = scaler.inverse_transform(predictions)
-y_test = scaler.inverse_transform(y_test.reshape(-1, horizon))
 
-# Calculate Mean Squared Error (MSE)
-mse = mean_squared_error(y_test.flatten(), predictions.flatten())
-print(f"Mean Squared Error: {mse}")
-
-# Plot actual vs predicted stock prices for a sample
-plt.figure(figsize=(12, 6))
-plt.plot(range(horizon), y_test[0], label='Actual Prices', marker='o')
-plt.plot(range(horizon), predictions[0], label='Predicted Prices', linestyle='--', marker='x')
-plt.title('Sample Long-Term Stock Price Prediction')
-plt.xlabel('Days')
-plt.ylabel('Stock Price')
-plt.legend()
-plt.show()
+"""
+Root Mean Square Error (RMSE), Mean Square Error (MSE) 
+and Mean absolute Error (MAE) are a standard way to measure 
+the error of a model in predicting quantitative data.
+"""
+print('The Mean Squared Error is',mean_squared_error(test_df['Close'].values,test_df['Predictions'].values))
+print('The Mean Absolute Error is',mean_absolute_error(test_df['Close'].values,test_df['Predictions'].values))
+print('The Root Mean Squared Error is',np.sqrt(mean_squared_error(test_df['Close'].values,test_df['Predictions'].values)))
