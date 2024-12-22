@@ -1,87 +1,74 @@
-# stock_price_prediction_long_term.py
-
-# Import necessary libraries
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
-from sklearn.metrics import mean_squared_error
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping
 
-# Load the stock data from the local CSV
-file_path = r"C:\Users\augus\OneDrive\Desktop\Tesla Stock Prices (2010-2023).csv"
-  # Update the path if needed
-data = pd.read_csv(file_path)
+# Load your data (replace with your dataset)
+data = pd.read_csv(r"C:\Users\augus\OneDrive\Desktop\Tesla Stock Prices (2010-2023).csv")
 
-# Ensure the 'Date' column is in datetime format and set as the index
-data['Date'] = pd.to_datetime(data['Date'])
-data.set_index('Date', inplace=True)
+# Preprocess the data: Assuming the 'Close' column is the target for stock prices
+prices = data['Close'].values.reshape(-1, 1)
 
-# Visualize the stock data
-plt.figure(figsize=(10, 6))
-plt.plot(data['Close'], label='Tesla Stock Price')
-plt.title('Stock Price History')
-plt.xlabel('Date')
-plt.ylabel('Stock Price')
-plt.legend()
-plt.show()
-
-# Preprocess the data
-# Assuming 'Close' is the column for stock closing prices
-stock_data = data[['Close']].values
-
-# Scale the data to a range between 0 and 1
+# Normalize the data
 scaler = MinMaxScaler(feature_range=(0, 1))
-scaled_data = scaler.fit_transform(stock_data)
+prices_scaled = scaler.fit_transform(prices)
 
-# Prepare the data for training
-lookback = 60  # Number of past days to use
-horizon = 20   # Number of future days to predict
+# Define lookback and horizon
+lookback = 60  # Number of previous days to use for prediction
+horizon = 5    # Number of days to predict
 
-def create_sequences(data, lookback, horizon):
+# Create datasets for training and testing
+def create_dataset(data, lookback, horizon):
     X, y = [], []
-    for i in range(len(data) - lookback - horizon + 1):
-        X.append(data[i:i + lookback])
-        y.append(data[i + lookback:i + lookback + horizon])
+    for i in range(lookback, len(data) - horizon + 1):
+        X.append(data[i - lookback:i, 0])  # Take lookback days
+        y.append(data[i:i + horizon, 0])  # Take next 'horizon' days as target
     return np.array(X), np.array(y)
 
-X, y = create_sequences(scaled_data, lookback, horizon)
+# Split the data into training and testing sets
+train_size = int(len(prices_scaled) * 0.8)
+train_data, test_data = prices_scaled[:train_size], prices_scaled[train_size:]
 
-# Split data into training and testing sets
-split_ratio = 0.8
-train_size = int(len(X) * split_ratio)
+X_train, y_train = create_dataset(train_data, lookback, horizon)
+X_test, y_test = create_dataset(test_data, lookback, horizon)
 
-X_train, X_test = X[:train_size], X[train_size:]
-y_train, y_test = y[:train_size], y[train_size:]
-
-# Reshape X_train and X_test for LSTM input
-X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
-X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
+# Reshape X to be 3D for LSTM [samples, time steps, features]
+X_train = X_train.reshape(X_train.shape[0], X_train.shape[1], 1)
+X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], 1)
 
 # Build the LSTM model
 model = Sequential()
 
-# First LSTM layer with dropout
-model.add(LSTM(units=100, return_sequences=True, input_shape=(lookback, 1)))
-model.add(Dropout(0.3))
+# First LSTM layer with dropout and L2 regularization
+model.add(LSTM(units=30, return_sequences=True, input_shape=(lookback, 1), kernel_regularizer='l2'))
+model.add(Dropout(0.3))  # Increased dropout
 
-# Second LSTM layer with dropout
-model.add(LSTM(units=100, return_sequences=False))
-model.add(Dropout(0.3))
+# Second LSTM layer with dropout and L2 regularization
+model.add(LSTM(units=30, return_sequences=False, kernel_regularizer='l2'))
+model.add(Dropout(0.3))  # Increased dropout
 
 # Fully connected layer to predict multiple days
 model.add(Dense(units=horizon))
 
-# Compile the model
-model.compile(optimizer='adam', loss='mean_squared_error')
+# Compile the model with a reduced learning rate and use a scheduler
+optimizer = Adam(learning_rate=0.0001)  # Reduced learning rate
+model.compile(optimizer=optimizer, loss='mean_squared_error')
+
+# Implement early stopping with a patience of 10
+early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
 
 # Train the model
 history = model.fit(
     X_train, y_train, 
-    epochs=100, 
+    epochs=50,  # Reduced number of epochs
     batch_size=64, 
-    validation_data=(X_test, y_test), 
+    validation_data=(X_test, y_test),
+    callbacks=[early_stopping],  # Use early stopping
     verbose=1
 )
 
