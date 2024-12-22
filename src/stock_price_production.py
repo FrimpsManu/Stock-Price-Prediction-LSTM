@@ -2,7 +2,7 @@ import pandas as pd  #for data manipulation operations
 import numpy as np   #for linear algebra
 
 #Libraries for visualisation
-# Libraries for visualization
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.graph_objects as go
@@ -42,37 +42,30 @@ init_notebook_mode(connected=True)
 df.isnull() .sum()
 
 #Plots
-"""
-The stock prices are almost constant until 2019 
-and thus I'll take the split of the data to only work on 
-the data that shows methodical/abrupt changes.
 
-"""
-data=df.iloc[2300:].copy()
+data = df.iloc[2300:].copy()
 
-plt.figure(figsize=(30,15))
-ax=sns.lineplot(x=data.index,y=data['Close'])
-plt.xticks(['19/08/2019','16/03/2020','26/02/2021','15/03/2022','05/01/2023'])
+plt.figure(figsize=(30, 15))
+ax = sns.lineplot(x=data.index, y=data['Close'])
+plt.xticks(['19/08/2019', '16/03/2020', '26/02/2021', '15/03/2022', '05/01/2023'])
+plt.title('Tesla Stock Close Price Over Time', fontsize=20)  # Title added here
 plt.show()
 
-data=df.iloc[2300:].copy()
+# Plotly Plot for Stock Price Analysis (Open, High, Low, Close)
+data = df.iloc[2300:].copy()
 
-names = cycle(['Stock Open Price','Stock High Price','Stock Low Price','Stock Close Price'])
+names = cycle(['Stock Open Price', 'Stock High Price', 'Stock Low Price', 'Stock Close Price'])
 
-fig = px.line(data, x=data.index, y=[data['Open'],data['High'], data['Low'],data['Close']],
-             labels={'date': 'Date','value':'Stock value'})
-fig.update_layout(title_text='Stock Analysis', font_size=15, font_color='black',legend_title_text='Stock Parameters')
+fig = px.line(data, x=data.index, y=[data['Open'], data['High'], data['Low'], data['Close']],
+              labels={'date': 'Date', 'value': 'Stock value'})
+fig.update_layout(title_text='Tesla Stock Price Analysis (2019 - 2023)',  # Title added here
+                  font_size=15, font_color='black', legend_title_text='Stock Parameters')
 fig.update_xaxes(showgrid=False)
 fig.update_yaxes(showgrid=False)
-fig.for_each_trace(lambda t:  t.update(name = next(names)))
+fig.for_each_trace(lambda t: t.update(name=next(names)))
 fig.show()
 
 #Moving Averages(MA)
-"""
-Moving Averages (MA) are a type of time series analysis 
-method used to smooth out fluctuations in data by 
-calculating the average of a set of data over a certain period of time.
-"""
 
 ma_day = [30, 60, 120,150]
 
@@ -154,47 +147,84 @@ model.fit(X_train_data, y_train_data, epochs = 150, batch_size = 32);
 
 #Predictions
 
-input_data=new_df[len(new_df)-len(test_df)-60:].values
-input_data=input_data.reshape(-1,1)
-input_data=scaler.transform(input_data)
+# Preparing input data and generating predictions
 
-X_test=[]
-for i in range(60,input_data.shape[0]):
-    X_test.append(input_data[i-60:i,0])
-X_test=np.array(X_test)
+# Ensure the input data is properly reshaped and scaled
+input_data = new_df[len(new_df) - len(test_df) - 60:].values
+input_data = input_data.reshape(-1, 1)
+input_data = scaler.transform(input_data)
 
-X_test=np.reshape(X_test,(X_test.shape[0],X_test.shape[1],1))
+# Prepare the X_test dataset for prediction
+X_test = []
+for i in range(60, input_data.shape[0]):
+    X_test.append(input_data[i - 60:i, 0])
 
-predicted=model.predict(X_test)
-predicted=scaler.inverse_transform(predicted)
+X_test = np.array(X_test)
+X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
 
-test_df['Predictions']=predicted
+# Generate predictions using the trained model
+predicted = model.predict(X_test)
+predicted = scaler.inverse_transform(predicted)
 
-plt.figure(figsize=(50,10))
-plt.plot(train_df['Close'],label='Training Data')
-plt.plot(test_df['Close'],label='Test Data')
-plt.plot(test_df['Predictions'],label='Prediction')
-plt.xticks(['19/08/2019','16/03/2020','26/02/2021','15/03/2022','05/01/2023'])
+# Check if predictions are being created correctly
+print(f"Predicted values:\n{predicted[:5]}")  # Print first few predicted values
+print(f"Length of Predictions: {len(predicted)}")
+print(f"Length of Test DataFrame: {len(test_df)}")
+
+# Add predictions to the test_df DataFrame
+test_df['Predictions'] = np.nan  # Initialize the 'Predictions' column
+test_df.iloc[60:, test_df.columns.get_loc('Predictions')] = predicted.flatten()  # Add predictions from index 60 onwards
+
+# Check if the Predictions column exists and is populated
+print(f"Test DataFrame columns: {test_df.columns}")
+print(f"Test DataFrame with Predictions:\n{test_df[['Close', 'Predictions']].head()}")
+
+# Plotting using Matplotlib
+plt.figure(figsize=(50, 10))
+plt.plot(train_df['Close'], label='Training Data')
+plt.plot(test_df['Close'], label='Test Data')
+
+# Plot predictions only if available
+if 'Predictions' in test_df and not test_df['Predictions'].isnull().all():
+    plt.plot(test_df['Predictions'], label='Prediction')
+else:
+    print("Predictions are either missing or empty.")
+
+plt.xticks(['19/08/2019', '16/03/2020', '26/02/2021', '15/03/2022', '05/01/2023'])
 plt.legend()
+plt.title('Stock Price Prediction vs Actual Data')
 plt.show()
 
+# Plotting using Plotly for better visualization
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=train_df.index,y=train_df['Close'],
-                    mode='lines',
-                    name='Training Data'))
-fig.add_trace(go.Scatter(x=test_df.index,y=test_df['Close'],
-                    mode='lines',
-                    name='Test Data'))
-fig.add_trace(go.Scatter(x=test_df.index,y=test_df['Predictions'],
-                    mode='lines',
-                    name='Prediction'))
+
+# Adding Training Data
+fig.add_trace(go.Scatter(x=train_df.index, y=train_df['Close'],
+                         mode='lines', name='Training Data'))
+
+# Adding Test Data
+fig.add_trace(go.Scatter(x=test_df.index, y=test_df['Close'],
+                         mode='lines', name='Test Data'))
+
+# Adding Predictions if available
+if 'Predictions' in test_df and not test_df['Predictions'].isnull().all():
+    fig.add_trace(go.Scatter(x=test_df.index, y=test_df['Predictions'],
+                             mode='lines', name='Prediction'))
+else:
+    print("Predictions are either missing or empty.")
+
+# Customize the layout
+fig.update_layout(title_text='Stock Price Prediction Using LSTM Model',
+                  xaxis_title='Date',
+                  yaxis_title='Stock Price',
+                  font_size=15, font_color='black')
+
+# Show the plot
+fig.show()
 
 
-"""
-Root Mean Square Error (RMSE), Mean Square Error (MSE) 
-and Mean absolute Error (MAE) are a standard way to measure 
-the error of a model in predicting quantitative data.
-"""
+
+#MSE and MAE
 print('The Mean Squared Error is',mean_squared_error(test_df['Close'].values,test_df['Predictions'].values))
 print('The Mean Absolute Error is',mean_absolute_error(test_df['Close'].values,test_df['Predictions'].values))
 print('The Root Mean Squared Error is',np.sqrt(mean_squared_error(test_df['Close'].values,test_df['Predictions'].values)))
